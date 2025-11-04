@@ -4,12 +4,11 @@
 
 int main(int argc, const char **argv) {
 	// 1. 创建底层连接
-	std::shared_ptr<kv_connection<std::string, std::string>> conn =
-		std::make_shared<redis_connection<>>("172.16.0.2", 6379);
+	std::shared_ptr<kv_connection> conn = std::make_shared<redis_connection>("172.16.0.2", 6379);
 
 	// 2. 创建序列化器
-	std::shared_ptr<serializer<std::string>> k_serializer = std::make_shared<string_serializer<std::string>>();
-	std::shared_ptr<serializer<unsigned int>> v_serializer = std::make_shared<string_serializer<unsigned int>>();
+	const std::shared_ptr<serializer<std::string>> k_serializer = std::make_shared<string_serializer<std::string>>();
+	const std::shared_ptr<serializer<unsigned int>> v_serializer = std::make_shared<string_serializer<unsigned int>>();
 
 	// 3. 构造 redis_template
 	redis_template<std::string, unsigned int> tpl(conn, k_serializer, v_serializer);

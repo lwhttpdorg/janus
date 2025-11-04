@@ -6,7 +6,7 @@
 
 #include "kv_connection.hpp"
 
-class redis_connection: public kv_connection<std::string, std::string> {
+class redis_connection: public kv_connection {
 public:
 	redis_connection(const std::string &host, const unsigned short port) {
 		context = redisConnect(host.c_str(), port);
@@ -27,6 +27,14 @@ public:
 	bool expire(const std::string &key, long long seconds) override {
 		auto r = exec("EXPIRE %s %lld", key.c_str(), seconds);
 		return r->type == REDIS_REPLY_INTEGER && r->integer == 1;
+	}
+
+	long long del(const std::string &key) override {
+		auto r = exec("DEL %s", key.c_str());
+		if (r->type != REDIS_REPLY_INTEGER) {
+			throw std::runtime_error("DEL: unexpected reply type");
+		}
+		return r->integer;
 	}
 
 	long long del(const std::vector<std::string> &keys) override {
@@ -73,14 +81,20 @@ public:
 		return std::nullopt;
 	}
 
-	std::string incr(const std::string &key, long long delta) override {
+	long long incr(const std::string &key, long long delta) override {
 		auto r = exec("INCRBY %s %lld", key.c_str(), delta);
-		return std::to_string(r->integer);
+		if (r->type != REDIS_REPLY_INTEGER) {
+			throw std::runtime_error("INCRBY: unexpected reply type");
+		}
+		return r->integer;
 	}
 
-	std::string decr(const std::string &key, long long delta) override {
+	long long decr(const std::string &key, long long delta) override {
 		auto r = exec("DECRBY %s %lld", key.c_str(), delta);
-		return std::to_string(r->integer);
+		if (r->type != REDIS_REPLY_INTEGER) {
+			throw std::runtime_error("DECRBY: unexpected reply type");
+		}
+		return r->integer;
 	}
 
 	long long append(const std::string &key, const std::string &value) override {

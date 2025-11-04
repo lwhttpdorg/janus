@@ -1,8 +1,10 @@
 #pragma once
 
-#include "kv_connection.hpp"
 #include "operations.hpp"
-#include "redis_template.hpp"
+
+
+template<typename K, typename V>
+class redis_template;
 
 template<typename K, typename V>
 class default_value_operations: public value_operations<K, V> {
@@ -43,13 +45,12 @@ private:
 };
 
 template<typename K, typename V>
-class default_hash_operations: public hash_operations<K, V> {
+class default_hash_operations : public hash_operations<K, V> {
 public:
-	explicit default_hash_operations(redis_template<K, V> &ops) : tpl(ops) {
-	}
+    explicit default_hash_operations(redis_template<K, V>& tpl) : tpl(tpl) {}
 
 private:
-	redis_template<K, V> &tpl;
+    redis_template<K, V>& tpl;
 };
 
 template<typename K, typename V>
@@ -63,9 +64,9 @@ private:
 };
 
 template<typename K, typename V>
-class valkey_set_operations: public set_operations<K, V> {
+class default_set_operations: public set_operations<K, V> {
 public:
-	explicit valkey_set_operations(redis_template<K, V> &ops) : tpl(ops) {
+	explicit default_set_operations(redis_template<K, V> &ops) : tpl(ops) {
 	}
 
 private:

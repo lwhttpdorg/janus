@@ -3,7 +3,8 @@
 #include <memory>
 #include <string>
 
-template<typename K, typename V>
+#include "redis_operations.hpp"
+
 class kv_connection;
 
 template<typename T>
@@ -34,7 +35,7 @@ public:
 };
 
 template<typename K, typename V>
-class redis_template: public redis_operations<K, V>, public kv_template<K, V> {
+class redis_template: public redis_operations<K, V> {
 public:
 	/**
 	 * @brief Constructor: Injects all necessary dependencies.
@@ -42,39 +43,39 @@ public:
 	 * @param k_serializer Serializer for the key type K.
 	 * @param v_serializer Serializer for the value type V.
 	 */
-	redis_template(std::shared_ptr<kv_connection<K, V>> conn, std::shared_ptr<serializer<K>> k_serializer,
-				   std::shared_ptr<serializer<V>> v_serializer) :
+	redis_template(const std::shared_ptr<kv_connection>& conn, const std::shared_ptr<serializer<K>> k_serializer,
+				   const std::shared_ptr<serializer<V>> v_serializer) :
 		connection(conn), key_serializer(k_serializer), value_serializer(v_serializer) {
 		if (conn == nullptr || k_serializer == nullptr || v_serializer == nullptr) {
 			throw std::invalid_argument("redis_template: connection or serializer is null");
 		}
 
 		value_ops = std::make_unique<default_value_operations<K, V>>(*this);
-		hash_ops = std::make_unique<default_hash_operations<K, V>>(*this);
-		list_ops = std::make_unique<default_list_operations<K, V>>(*this);
-		set_ops = std::make_unique<default_set_operations<K, V>>(*this);
-		zset_ops = std::make_unique<default_zset_operations<K, V>>(*this);
+		//hash_ops = std::make_unique<default_hash_operations<K, V>>(*this);
+		//list_ops = std::make_unique<default_list_operations<K, V>>(*this);
+		//set_ops = std::make_unique<default_set_operations<K, V>>(*this);
+		//zset_ops = std::make_unique<default_zset_operations<K, V>>(*this);
 	}
 
 	bool exists(const K &key) override {
-		auto &serialized_key = this->key_serialize(key);
+		auto serialized_key = this->serialize_key(key);
 		return connection->exists(serialized_key);
 	}
 
 	bool expire(const K &key, long long seconds) override {
-		auto &serialized_key = this->key_serialize(key);
+		auto serialized_key = this->serialize_key(key);
 		return connection->expire(serialized_key, seconds);
 	}
 
 	long long del(const K &key) override {
-		auto &serialized_key = this->key_serialize(key);
+		auto serialized_key = this->serialize_key(key);
 		return connection->del(serialized_key);
 	}
 
 	long long del(const std::vector<K> &keys) override {
 		std::vector<K> s_keys;
 		for (const auto &key: keys) {
-			s_keys.push_back(this->key_serialize(key));
+			s_keys.push_back(this->serialize_key(key));
 		}
 		return connection->del(s_keys);
 	}
@@ -103,24 +104,26 @@ public:
 		return *zset_ops;
 	}
 
-	[[nodiscard]] std::string key_serialize(const K &key) const {
+	[[nodiscard]] std::string serialize_key(const K &key) const {
 		return key_serializer->serialize(key);
 	}
 
-	[[nodiscard]] K key_deserialize(const std::string &data) const {
+	[[nodiscard]] K deserialize_key(const std::string &data) const {
 		return key_serializer->deserialize(data);
 	}
 
-	[[nodiscard]] std::string value_serialize(const V &value) const {
+	[[nodiscard]] std::string serialize_value(const V &value) const {
 		return value_serializer->serialize(value);
 	}
 
-	[[nodiscard]] V value_deserialize(const std::string &data) const {
+	[[nodiscard]] V deserialize_value(const std::string &data) const {
 		return value_serializer->deserialize(data);
 	}
 
+	kv_connection& get_connection() { return *connection; }
+
 private:
-	std::shared_ptr<kv_connection<K, V>> connection;
+	std::shared_ptr<kv_connection> connection;
 	std::shared_ptr<serializer<K>> key_serializer;
 	std::shared_ptr<serializer<V>> value_serializer;
 
