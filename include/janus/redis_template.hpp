@@ -43,7 +43,7 @@ public:
 	 * @param k_serializer Serializer for the key type K.
 	 * @param v_serializer Serializer for the value type V.
 	 */
-	redis_template(const std::shared_ptr<kv_connection>& conn, const std::shared_ptr<serializer<K>> k_serializer,
+	redis_template(const std::shared_ptr<kv_connection> &conn, const std::shared_ptr<serializer<K>> k_serializer,
 				   const std::shared_ptr<serializer<V>> v_serializer) :
 		connection(conn), key_serializer(k_serializer), value_serializer(v_serializer) {
 		if (conn == nullptr || k_serializer == nullptr || v_serializer == nullptr) {
@@ -51,10 +51,10 @@ public:
 		}
 
 		value_ops = std::make_unique<default_value_operations<K, V>>(*this);
-		//hash_ops = std::make_unique<default_hash_operations<K, V>>(*this);
-		//list_ops = std::make_unique<default_list_operations<K, V>>(*this);
-		//set_ops = std::make_unique<default_set_operations<K, V>>(*this);
-		//zset_ops = std::make_unique<default_zset_operations<K, V>>(*this);
+		hash_ops = std::make_unique<default_hash_operations<K, V>>(*this);
+		list_ops = std::make_unique<default_list_operations<K, V>>(*this);
+		set_ops = std::make_unique<default_set_operations<K, V>>(*this);
+		zset_ops = std::make_unique<default_zset_operations<K, V>>(*this);
 	}
 
 	bool exists(const K &key) override {
@@ -120,7 +120,9 @@ public:
 		return value_serializer->deserialize(data);
 	}
 
-	kv_connection& get_connection() { return *connection; }
+	kv_connection &get_connection() {
+		return *connection;
+	}
 
 private:
 	std::shared_ptr<kv_connection> connection;
