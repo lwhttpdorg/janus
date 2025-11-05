@@ -23,7 +23,7 @@ Janus uses CMake for its build process. Please follow the standard out-of-source
 ### Step 1: Clone the Repository
 
 ```shell
-git clone <your-repo-url>
+git clone https://github.com/lwhttpdorg/janus.git
 cd janus
 ```
 
