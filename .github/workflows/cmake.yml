@@ -1,0 +1,59 @@
+name: CMake Build & Test with Redis 8 (Debian)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container: debian:stable-slim
+    services:
+      redis:
+        image: redis:8 
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379 
+          
+    strategy:
+      matrix:
+        build_type: [ Debug, Release ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Diagnose Working Directory
+        run: |
+          echo "--- Current Working Directory ---"
+          pwd
+          echo "--- Contents of Working Directory ---"
+          ls -l
+          echo "-----------------------------------"
+
+      - name: Setup Build Dependencies & Redis Tools
+        run: |
+          apt-get update
+          apt-get install -y cmake build-essential libhiredis-dev
+
+      - name: Configure CMake
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DENABLE_TEST=ON
+          -S .
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test
+        env:
+          TEST_REDIS_HOST: 127.0.0.1
+          TEST_REDIS_PORT: 6379
+        run: ctest --build-config ${{ matrix.build_type }} --test-dir build --output-on-failure
