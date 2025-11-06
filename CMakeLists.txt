@@ -25,11 +25,27 @@ else ()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
 endif ()
 
+#set(CMAKE_PREFIX_PATH "D:/OpenCode/hiredis")
+find_package(hiredis QUIET)
 
-set(CMAKE_PREFIX_PATH "D:/OpenCode/hiredis")
+if (TARGET hiredis::hiredis)
+	target_link_libraries(${TARGET_NAME} INTERFACE hiredis::hiredis)
+else ()
+	find_path(HIREDIS_INCLUDE_DIR hiredis/hiredis.h)
+	find_library(HIREDIS_LIB hiredis)
 
-find_package(hiredis REQUIRED)
-target_link_libraries(janus INTERFACE hiredis::hiredis)
+	if (NOT HIREDIS_INCLUDE_DIR OR NOT HIREDIS_LIB)
+		message(FATAL_ERROR "hiredis not found")
+	endif ()
+
+	add_library(hiredis INTERFACE)
+	target_include_directories(hiredis INTERFACE ${HIREDIS_INCLUDE_DIR})
+	target_link_libraries(hiredis INTERFACE ${HIREDIS_LIB})
+
+	add_library(hiredis::hiredis ALIAS hiredis)
+
+	target_link_libraries(${TARGET_NAME} INTERFACE hiredis::hiredis)
+endif ()
 
 option(ENABLE_TEST "Enable test" OFF)
 
@@ -37,4 +53,3 @@ if (ENABLE_TEST)
 	enable_testing()
 	add_subdirectory(test)
 endif ()
-
