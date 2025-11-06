@@ -36,6 +36,8 @@ jobs:
 
       - name: Configure CMake
         run: >
+          pwd
+          ls -l
           cmake -B build
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DENABLE_TEST=ON
