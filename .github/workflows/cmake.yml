@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     container: debian:stable-slim
     services:
+      redis:
         image: redis:8 
         options: >-
           --health-cmd "redis-cli ping"
