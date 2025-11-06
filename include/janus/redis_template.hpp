@@ -18,10 +18,13 @@ public:
 	virtual bool exists(const K &key) = 0;
 
 	virtual bool expire(const K &key, long long seconds) = 0;
+	virtual bool pexpire(const std::string &key, int milliseconds) = 0;
 
 	virtual long long del(const K &key) = 0;
-
 	virtual long long del(const std::vector<K> &keys) = 0;
+
+	virtual int64_t ttl(const std::string &key) = 0;
+	virtual int64_t pttl(const std::string &key) = 0;
 
 	virtual value_operations<K, V> &ops_for_value() = 0;
 
@@ -67,6 +70,11 @@ public:
 		return connection->expire(serialized_key, seconds);
 	}
 
+	bool pexpire(const std::string &key, int milliseconds) override {
+		auto serialized_key = this->serialize_key(key);
+		return connection->pexpire(serialized_key, milliseconds);
+	}
+
 	long long del(const K &key) override {
 		auto serialized_key = this->serialize_key(key);
 		return connection->del(serialized_key);
@@ -78,6 +86,16 @@ public:
 			s_keys.push_back(this->serialize_key(key));
 		}
 		return connection->del(s_keys);
+	}
+
+	int64_t ttl(const std::string &key) override {
+		auto serialized_key = this->serialize_key(key);
+		return connection->ttl(serialized_key);
+	}
+
+	int64_t pttl(const std::string &key) override {
+		auto serialized_key = this->serialize_key(key);
+		return connection->pttl(serialized_key);
 	}
 
 	// ==========================================================

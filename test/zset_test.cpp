@@ -22,11 +22,10 @@ protected:
 
 	const key_type test_key = "test_zset_leaderboard";
 
-	// Connection parameters (No trailing underscores)
+	// Connection parameters
 	std::string redis_host;
 	unsigned short redis_port{DEFAULT_REDIS_PORT};
 
-	// Janus components (No trailing underscores)
 	std::shared_ptr<kv_connection> conn;
 	std::shared_ptr<serializer<key_type>> k_serializer;
 	std::shared_ptr<serializer<member_type>> v_serializer; // V is the member type
@@ -72,18 +71,19 @@ protected:
 						 << ". Error: " << e.what();
 		}
 
-		// Create Serializers
+		// 3. Create Serializers
 		k_serializer = std::make_shared<string_serializer<key_type>>();
 		v_serializer = std::make_shared<string_serializer<member_type>>();
 
-		// Construct redis_template
+		// 4. Construct redis_template
 		tpl = std::make_unique<redis_template<key_type, member_type>>(conn, k_serializer, v_serializer);
 
-		// Clean up test key
+		// 5. Clean up test key
 		clear_test_keys();
 	}
 
 	void TearDown() override {
+		// 6. Clean up test key
 		if (tpl) {
 			clear_test_keys();
 		}

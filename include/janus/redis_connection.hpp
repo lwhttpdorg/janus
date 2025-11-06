@@ -34,22 +34,22 @@ public:
 		return r->type == REDIS_REPLY_INTEGER && r->integer == 1;
 	}
 
-	int ttl(const std::string &key) override {
+	int64_t ttl(const std::string &key) override {
 		auto r = exec("TTL %s", key.c_str());
 
 		if (r->type != REDIS_REPLY_INTEGER) {
 			throw std::runtime_error("TTL: unexpected reply type");
 		}
-		return static_cast<int>(r->integer);
+		return r->integer;
 	}
 
-	int pttl(const std::string &key) override {
+	int64_t pttl(const std::string &key) override {
 		auto r = exec("PTTL %s", key.c_str());
 
 		if (r->type != REDIS_REPLY_INTEGER) {
 			throw std::runtime_error("PTTL: unexpected reply type");
 		}
-		return static_cast<int>(r->integer);
+		return r->integer;
 	}
 
 	long long del(const std::string &key) override {

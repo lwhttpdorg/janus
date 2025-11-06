@@ -6,8 +6,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "gtest/gtest.h"
 
+#include "gtest/gtest.h"
 #include "janus/janus.hpp"
 
 #define DEFAULT_REDIS_HOST "127.0.0.1"
@@ -23,11 +23,10 @@ protected:
 
 	const key_type TEST_KEY = "test_hash_map";
 
-	// Connection parameters (No trailing underscores)
+	// Connection parameters
 	std::string redis_host;
 	unsigned short redis_port{DEFAULT_REDIS_PORT};
 
-	// Janus components (No trailing underscores)
 	std::shared_ptr<kv_connection> conn;
 	std::shared_ptr<serializer<key_type>> k_serializer;
 	std::shared_ptr<serializer<value_type>> v_serializer;

@@ -16,6 +16,8 @@ public:
 
 	virtual long long del(const std::string &keys) = 0;
 
+	virtual long long del(const std::vector<std::string> &keys) = 0;
+
 	/**
 	 * @brief Returns the remaining time to live of a key that has an expiry.
 	 * * @param key The key name to check.
@@ -25,7 +27,7 @@ public:
 	 * - -2: The key does not exist.
 	 * @throw std::runtime_error if the Redis reply is not an integer.
 	 */
-	virtual int ttl(const std::string &key) = 0;
+	virtual int64_t ttl(const std::string &key) = 0;
 	/**
 	 * @brief Returns the remaining time to live of a key in milliseconds.
 	 * * @param key The key name to check.
@@ -36,9 +38,7 @@ public:
 	 * @note PTTL offers higher precision than TTL.
 	 * @throw std::runtime_error if the Redis reply is not an integer.
 	 */
-	virtual int pttl(const std::string &key) = 0;
-
-	virtual long long del(const std::vector<std::string> &keys) = 0;
+	virtual int64_t pttl(const std::string &key) = 0;
 
 	// ============================================================================
 	// For String

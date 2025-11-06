@@ -3,6 +3,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+
 #include "gtest/gtest.h"
 #include "janus/janus.hpp"
 
@@ -15,11 +16,10 @@ protected:
 	using key_type = std::string;
 	using value_type = unsigned int;
 
-	// Connection parameters (No trailing underscores)
+	// Connection parameters
 	std::string redis_host;
 	unsigned short redis_port{DEFAULT_REDIS_PORT};
 
-	// Janus components (No trailing underscores)
 	std::shared_ptr<kv_connection> conn;
 	std::shared_ptr<serializer<key_type>> k_serializer;
 	std::shared_ptr<serializer<value_type>> v_serializer;

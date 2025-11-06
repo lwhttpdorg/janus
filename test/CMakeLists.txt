@@ -28,17 +28,15 @@ macro(add_janus_test TEST_NAME FILENAME)
 	)
 endmacro()
 
+# Redis Operations Test
+add_janus_test(redis_operations_test redis_operations_test.cpp)
 # String Operations Test
 add_janus_test(string_operations_test string_test.cpp)
-
 # Hash Operations Test
 add_janus_test(hash_operations_test hash_test.cpp)
-
 # List Operations Test
 add_janus_test(list_operations_test list_test.cpp)
-
 # Set Operations Test
 add_janus_test(set_operations_test set_test.cpp)
-
 # Sorted Set (ZSet) Operations Test
 add_janus_test(zset_operations_test zset_test.cpp)

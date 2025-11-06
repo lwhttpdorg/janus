@@ -19,11 +19,10 @@ protected:
 
 	const key_type test_key = "test_list_key";
 
-	// Connection parameters (No trailing underscores)
+	// Connection parameters
 	std::string redis_host;
 	unsigned short redis_port{DEFAULT_REDIS_PORT};
 
-	// Janus components (No trailing underscores)
 	std::shared_ptr<kv_connection> conn;
 	std::shared_ptr<serializer<key_type>> k_serializer;
 	std::shared_ptr<serializer<value_type>> v_serializer;
