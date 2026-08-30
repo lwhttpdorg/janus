@@ -38,7 +38,7 @@ rm -rf ${LINT_REPORT} ${BUILD_DIR}
 echo -e "✔️ ${GREEN}Cleanup complete.\n${NC}"
 
 echo -e "⏳ ${YELLOW}>>> [3/4] Configuring CMake...${NC}"
-cmake -DCMAKE_BUILD_TYPE=Debug -S . -B ${BUILD_DIR} -DENABLE_REDISDAL_TEST=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+cmake -DCMAKE_BUILD_TYPE=Debug -S . -B ${BUILD_DIR} -DENABLE_REDISDAL_TEST=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 # Check if CMake configuration succeeded
 if [ $? -ne 0 ]; then
@@ -52,8 +52,13 @@ echo -e "${BLUE}Note: This may take a while depending on the project size...${NC
 
 start_time=$(date +%s)
 
-# Execute clang-tidy and capture both stdout and stderr
-run-clang-tidy -p ${BUILD_DIR} -header-filter="^${PROJ_DIR}/.*" > ${LINT_REPORT} 2>&1
+# Check only project translation units and headers. The CMake build directory is
+# inside the project tree, so an unrestricted filter would also lint FetchContent
+# dependencies such as GoogleTest.
+run-clang-tidy -p ${BUILD_DIR} -quiet \
+    -source-filter="^${PROJ_DIR}/(src|test)/.*" \
+    -header-filter="^${PROJ_DIR}/(include|src|test)/.*" \
+    > ${LINT_REPORT} 2>&1
 
 # Calculate duration
 end_time=$(date +%s)

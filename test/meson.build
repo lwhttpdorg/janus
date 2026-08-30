@@ -22,6 +22,7 @@ test_sources = [
     'serializer_test.cpp',
     'set_ops_test.cpp',
     'string_ops_test.cpp',
+    'stream_ops_test.cpp',
     'zset_ops_test.cpp',
 ]
 

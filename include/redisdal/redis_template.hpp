@@ -14,6 +14,9 @@ namespace redisdal {
     template<typename T>
     class serializer;
 
+    /**
+     * @brief Typed facade contract for Redis key commands and data-type operation views.
+     */
     template<typename K, typename V>
     class redis_operations {
     public:
@@ -64,14 +67,21 @@ namespace redisdal {
         virtual set_operations<K, V> &ops_for_set() = 0;
         /* Sorted Set operations view */
         virtual zset_operations<K, V> &ops_for_zset() = 0;
+        /* Stream operations view */
+        virtual stream_operations<K, V> &ops_for_stream() = 0;
     };
 
     /**
      * @brief The central class for Redis interaction, managing connections and serialization.
      *
-     * This class provides a high-level abstraction for Redis operations. It uses the Template
-     * Method design pattern to delegate data-structure-specific logic to various `*operations`
-     * interfaces, while handling the core logic of serialization and connection management.
+     * This class is a Facade over key-level commands and data-type-specific operation views.
+     * Serializer strategies and the kv_connection boundary are supplied through constructor
+     * injection. The facade composes the default operation views, which serialize typed data
+     * and delegate command execution to the connection boundary.
+     *
+     * @par Design patterns
+     * Facade, Strategy, Constructor Injection, and Composition/Delegation. This is not a
+     * Template Method implementation because no overridable algorithm skeleton is defined.
      * @attention This class is NOT thread-safe. A single instance should not be shared across threads without external
      * locking.
      */
@@ -93,6 +103,7 @@ namespace redisdal {
             list_ops = std::make_unique<default_list_operations<K, V>>(*this);
             set_ops = std::make_unique<default_set_operations<K, V>>(*this);
             zset_ops = std::make_unique<default_zset_operations<K, V>>(*this);
+            stream_ops = std::make_unique<default_stream_operations<K, V>>(*this);
         }
 
         /** @copydoc redis_operations::exists */
@@ -269,6 +280,11 @@ namespace redisdal {
             return *zset_ops;
         }
 
+        /** @copydoc redis_operations::ops_for_stream */
+        stream_operations<K, V> &ops_for_stream() override {
+            return *stream_ops;
+        }
+
         /**
          * @brief Serializes a key of type K into a string.
          */
@@ -317,6 +333,7 @@ namespace redisdal {
         std::unique_ptr<list_operations<K, V>> list_ops;
         std::unique_ptr<set_operations<K, V>> set_ops;
         std::unique_ptr<zset_operations<K, V>> zset_ops;
+        std::unique_ptr<stream_operations<K, V>> stream_ops;
 
         // cache mapping from sha1 -> script body for automatic reload on NOSCRIPT
         std::unordered_map<std::string, std::string> sha1_cache;

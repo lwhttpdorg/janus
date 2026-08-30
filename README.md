@@ -236,6 +236,19 @@ int main() {
     tpl.ops_for_zset().zadd("leaderboard", {{"alice", 100.0}, {"bob", 85.5}});
     auto top = tpl.ops_for_zset().zrevrange_withscores("leaderboard", 0, -1);
 
+    // Stream operations
+    auto message_id = tpl.ops_for_stream().xadd(
+        "events", {{"type", "user.created"}, {"user", "alice"}});
+    auto events = tpl.ops_for_stream().xrange("events", "-", "+");
+
+    // Consumer groups (CREATECONSUMER and MINID trimming require Redis 6.2+)
+    tpl.ops_for_stream().xgroup_create("jobs", "workers", "0-0", true);
+    tpl.ops_for_stream().xadd("jobs", {{"task", "send-email"}});
+    auto jobs = tpl.ops_for_stream().xreadgroup("workers", "worker-1", {{"jobs", ">"}});
+    if (!jobs.empty() && !jobs[0].entries.empty()) {
+        tpl.ops_for_stream().xack("jobs", "workers", {jobs[0].entries[0].id});
+    }
+
     // Key-level operations live on redis_template directly
     tpl.expire("greeting", 60);
     tpl.del("greeting");

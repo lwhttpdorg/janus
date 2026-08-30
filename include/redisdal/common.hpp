@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace redisdal {
@@ -13,6 +14,91 @@ namespace redisdal {
         uint64_t cursor;
         std::unordered_set<K> keys;
     };
+
+    /**
+     * @brief The trimming strategy used by XADD and XTRIM.
+     */
+    enum class stream_trim_strategy : std::uint8_t { MAXLEN, MINID };
+
+    /**
+     * @brief Options that describe an XADD/XTRIM trimming clause.
+     */
+    struct stream_trim_options {
+        stream_trim_strategy strategy{stream_trim_strategy::MAXLEN};
+        std::string threshold;
+        bool approximate{false};
+        std::optional<long long> limit;
+
+        static stream_trim_options maxlen(uint64_t max_length, bool approximate = false,
+                                          std::optional<long long> limit = std::nullopt) {
+            return {stream_trim_strategy::MAXLEN, std::to_string(max_length), approximate, limit};
+        }
+
+        static stream_trim_options minid(const std::string &minimum_id, bool approximate = false,
+                                         std::optional<long long> limit = std::nullopt) {
+            return {stream_trim_strategy::MINID, minimum_id, approximate, limit};
+        }
+    };
+
+    /**
+     * @brief Options for appending a stream entry with XADD.
+     */
+    struct stream_add_options {
+        std::string id{"*"};
+        bool nomkstream{false};
+        std::optional<stream_trim_options> trim;
+    };
+
+    /**
+     * @brief Options shared by XREAD calls.
+     */
+    struct stream_read_options {
+        std::optional<long long> count;
+        std::optional<long long> block_ms;
+    };
+
+    /**
+     * @brief Options for XREADGROUP calls.
+     */
+    struct stream_read_group_options {
+        std::optional<long long> count;
+        std::optional<long long> block_ms;
+        bool noack{false};
+    };
+
+    /**
+     * @brief A field-value entry stored in a Redis Stream.
+     *
+     * A vector is intentionally used for fields because Redis preserves field order
+     * and permits repeated field names inside an entry.
+     */
+    template<typename K, typename V>
+    struct stream_entry {
+        std::string id;
+        std::vector<std::pair<K, V>> fields;
+    };
+
+    /**
+     * @brief A stream key and the entries returned for it by XREAD/XREADGROUP.
+     */
+    template<typename K, typename V>
+    struct stream_batch {
+        K key;
+        std::vector<stream_entry<K, V>> entries;
+    };
+
+    /**
+     * @brief A stream key and the ID from which it should be read.
+     */
+    template<typename K>
+    struct stream_read_request {
+        K key;
+        std::string id;
+    };
+
+    using string_stream_entry = stream_entry<std::string, std::string>;
+    using string_stream_batch = stream_batch<std::string, std::string>;
+    using string_stream_read_request = stream_read_request<std::string>;
 
     enum class reply_type : std::uint8_t { STRING, ARRAY, INTEGER, NIL, STATUS, ERROR, DOUBLE, BOOL };
 

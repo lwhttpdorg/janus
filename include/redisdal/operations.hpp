@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "common.hpp"
+
 namespace redisdal {
     template<typename K, typename V>
     class value_operations {
@@ -356,5 +358,101 @@ namespace redisdal {
          */
         virtual std::vector<std::pair<V, double>> zrevrange_withscores(const K &key, long long start,
                                                                        long long stop) = 0;
+    };
+
+    /**
+     * @brief Operations for Redis Streams.
+     *
+     * Stream keys and entry field names use K. Entry field values use V.
+     * Stream IDs, group names, and consumer names remain strings because Redis
+     * assigns special meaning to values such as "*", "$", and ">".
+     */
+    template<typename K, typename V>
+    class stream_operations {
+    public:
+        virtual ~stream_operations() = default;
+
+        /**
+         * @brief Appends an entry to a stream. (Corresponds to XADD)
+         * @param key The stream key.
+         * @param fields Ordered field-value pairs for the entry.
+         * @param options Entry ID, NOMKSTREAM, and optional trimming settings.
+         * @return The entry ID, or std::nullopt when NOMKSTREAM is used and the key does not exist.
+         */
+        virtual std::optional<std::string> xadd(const K &key, const std::vector<std::pair<K, V>> &fields,
+                                                const stream_add_options &options = {}) = 0;
+
+        /**
+         * @brief Returns the number of entries in a stream. (Corresponds to XLEN)
+         */
+        virtual long long xlen(const K &key) = 0;
+
+        /**
+         * @brief Returns entries with IDs in the inclusive range [start, end]. (Corresponds to XRANGE)
+         */
+        virtual std::vector<stream_entry<K, V>> xrange(const K &key, const std::string &start, const std::string &end,
+                                                       std::optional<long long> count = std::nullopt) = 0;
+
+        /**
+         * @brief Returns entries in reverse order with IDs in the inclusive range [end, start].
+         * (Corresponds to XREVRANGE)
+         */
+        virtual std::vector<stream_entry<K, V>> xrevrange(const K &key, const std::string &end,
+                                                          const std::string &start,
+                                                          std::optional<long long> count = std::nullopt) = 0;
+
+        /**
+         * @brief Reads entries newer than each requested stream ID. (Corresponds to XREAD)
+         */
+        virtual std::vector<stream_batch<K, V>> xread(const std::vector<stream_read_request<K>> &streams,
+                                                      const stream_read_options &options = {}) = 0;
+
+        /**
+         * @brief Deletes entries from a stream. (Corresponds to XDEL)
+         */
+        virtual long long xdel(const K &key, const std::vector<std::string> &ids) = 0;
+
+        /**
+         * @brief Trims a stream according to MAXLEN or MINID. (Corresponds to XTRIM)
+         */
+        virtual long long xtrim(const K &key, const stream_trim_options &options) = 0;
+
+        /**
+         * @brief Creates a consumer group. (Corresponds to XGROUP CREATE)
+         */
+        virtual bool xgroup_create(const K &key, const std::string &group, const std::string &id = "$",
+                                   bool mkstream = false) = 0;
+
+        /**
+         * @brief Changes a consumer group's last-delivered ID. (Corresponds to XGROUP SETID)
+         */
+        virtual bool xgroup_setid(const K &key, const std::string &group, const std::string &id) = 0;
+
+        /**
+         * @brief Destroys a consumer group. (Corresponds to XGROUP DESTROY)
+         */
+        virtual bool xgroup_destroy(const K &key, const std::string &group) = 0;
+
+        /**
+         * @brief Creates a consumer in a group. (Corresponds to XGROUP CREATECONSUMER)
+         */
+        virtual bool xgroup_createconsumer(const K &key, const std::string &group, const std::string &consumer) = 0;
+
+        /**
+         * @brief Deletes a consumer and returns its pending message count. (Corresponds to XGROUP DELCONSUMER)
+         */
+        virtual long long xgroup_delconsumer(const K &key, const std::string &group, const std::string &consumer) = 0;
+
+        /**
+         * @brief Reads entries through a consumer group. (Corresponds to XREADGROUP)
+         */
+        virtual std::vector<stream_batch<K, V>> xreadgroup(const std::string &group, const std::string &consumer,
+                                                           const std::vector<stream_read_request<K>> &streams,
+                                                           const stream_read_group_options &options = {}) = 0;
+
+        /**
+         * @brief Acknowledges entries processed by a consumer group. (Corresponds to XACK)
+         */
+        virtual long long xack(const K &key, const std::string &group, const std::vector<std::string> &ids) = 0;
     };
 } // namespace redisdal

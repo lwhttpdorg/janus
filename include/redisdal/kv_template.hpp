@@ -17,6 +17,9 @@ namespace redisdal {
     template<typename K, typename V>
     class hash_operations;
 
+    template<typename K, typename V>
+    class stream_operations;
+
     /**
      * @brief Abstract interface that strictly mimics the Spring Data RedisTemplate.
      * * This class acts as a Facade providing access points to all Redis data structure
@@ -66,5 +69,11 @@ namespace redisdal {
          * @return A non-null reference to ZSetOperations<K, V> interface. The object is managed by the template.
          */
         virtual zset_operations<K, V> &ops_for_zset() = 0;
+
+        /**
+         * @brief Returns the StreamOperations interface (Redis Stream type).
+         * @return A non-null reference to StreamOperations<K, V> interface. The object is managed by the template.
+         */
+        virtual stream_operations<K, V> &ops_for_stream() = 0;
     };
 } // namespace redisdal

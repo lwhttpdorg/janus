@@ -18,7 +18,7 @@ find_package(Threads REQUIRED)
 # to avoid recompiling it for every test executable.
 set(COMMON_TEST_FILES test_env.cpp)
 add_library(redisdal_test_env STATIC ${COMMON_TEST_FILES})
-target_link_libraries(redisdal_test_env PRIVATE redisdal)
+target_link_libraries(redisdal_test_env PUBLIC redisdal)
 
 # Define a common set of libraries required by all test executables.
 set(REDISDAL_TEST_LIBS
@@ -27,8 +27,21 @@ set(REDISDAL_TEST_LIBS
     Threads::Threads
 )
 
-# Auto-discover all test source files in the current directory.
-file(GLOB TEST_SOURCE_FILES "*_test.cpp")
+# Keep the test manifest explicit and aligned with test/meson.build so adding a
+# test requires updating both supported build systems.
+set(TEST_SOURCE_FILES
+    hash_ops_test.cpp
+    key_ops_test.cpp
+    list_ops_test.cpp
+    lua_and_raw_cmd_test.cpp
+    redis_connection_test.cpp
+    redis_tpl_test.cpp
+    serializer_test.cpp
+    set_ops_test.cpp
+    string_ops_test.cpp
+    stream_ops_test.cpp
+    zset_ops_test.cpp
+)
 
 set(DEFAULT_TEST_TIMEOUT 10)
 message(STATUS "Setting default test timeout to ${DEFAULT_TEST_TIMEOUT} seconds.")

@@ -93,6 +93,13 @@ namespace redisdal {
 
     using redis_reply_ptr = std::unique_ptr<redisReply, reply_deleter>;
 
+    /**
+     * @brief Concrete kv_connection backed by hiredis.
+     *
+     * @par Design pattern
+     * Adapter: translates the string-based kv_connection contract to hiredis commands
+     * and converts hiredis reply objects into the library's return types.
+     */
     class redis_connection: public kv_connection {
     public:
         /**
@@ -1109,6 +1116,168 @@ namespace redisdal {
             throw unexpected_reply_type_error("ZINCRBY", "string", reply_type_name(reply->type));
         }
 
+        // ============================================================================
+        // For Stream
+        // ============================================================================
+
+        std::optional<std::string> xadd(const std::string &key,
+                                        const std::vector<std::pair<std::string, std::string>> &fields,
+                                        const stream_add_options &options) override {
+            if (fields.empty()) {
+                throw std::invalid_argument("XADD: fields must not be empty");
+            }
+            if (options.id.empty()) {
+                throw std::invalid_argument("XADD: id must not be empty");
+            }
+
+            std::vector<std::string> args{"XADD", key};
+            if (options.nomkstream) {
+                args.emplace_back("NOMKSTREAM");
+            }
+            if (options.trim) {
+                append_stream_trim_args(args, *options.trim, "XADD");
+            }
+            args.push_back(options.id);
+            for (const auto &field: fields) {
+                args.push_back(field.first);
+                args.push_back(field.second);
+            }
+
+            const auto reply = exec_args(args);
+            if (reply->type == REDIS_REPLY_STRING) {
+                return std::string(reply->str, reply->len);
+            }
+            if (reply->type == REDIS_REPLY_NIL) {
+                return std::nullopt;
+            }
+            throw unexpected_reply_type_error("XADD", "string or nil", reply_type_name(reply->type));
+        }
+
+        long long xlen(const std::string &key) override {
+            const auto reply = exec_args({"XLEN", key});
+            if (reply->type != REDIS_REPLY_INTEGER) {
+                throw unexpected_reply_type_error("XLEN", "integer", reply_type_name(reply->type));
+            }
+            return reply->integer;
+        }
+
+        std::vector<string_stream_entry> xrange(const std::string &key, const std::string &start,
+                                                const std::string &end, std::optional<long long> count) override {
+            std::vector<std::string> args{"XRANGE", key, start, end};
+            append_stream_count_arg(args, count, "XRANGE");
+            const auto reply = exec_args(args);
+            return parse_stream_entries(reply.get(), "XRANGE");
+        }
+
+        std::vector<string_stream_entry> xrevrange(const std::string &key, const std::string &end,
+                                                   const std::string &start, std::optional<long long> count) override {
+            std::vector<std::string> args{"XREVRANGE", key, end, start};
+            append_stream_count_arg(args, count, "XREVRANGE");
+            const auto reply = exec_args(args);
+            return parse_stream_entries(reply.get(), "XREVRANGE");
+        }
+
+        std::vector<string_stream_batch> xread(const std::vector<string_stream_read_request> &streams,
+                                               const stream_read_options &options) override {
+            validate_stream_requests(streams, "XREAD");
+            std::vector<std::string> args{"XREAD"};
+            append_stream_count_arg(args, options.count, "XREAD");
+            append_stream_block_arg(args, options.block_ms, "XREAD");
+            append_stream_requests(args, streams);
+            const auto reply = exec_args(args);
+            return parse_stream_batches(reply.get(), "XREAD");
+        }
+
+        long long xdel(const std::string &key, const std::vector<std::string> &ids) override {
+            if (ids.empty()) {
+                return 0;
+            }
+            std::vector<std::string> args{"XDEL", key};
+            args.insert(args.end(), ids.begin(), ids.end());
+            const auto reply = exec_args(args);
+            if (reply->type != REDIS_REPLY_INTEGER) {
+                throw unexpected_reply_type_error("XDEL", "integer", reply_type_name(reply->type));
+            }
+            return reply->integer;
+        }
+
+        long long xtrim(const std::string &key, const stream_trim_options &options) override {
+            std::vector<std::string> args{"XTRIM", key};
+            append_stream_trim_args(args, options, "XTRIM");
+            const auto reply = exec_args(args);
+            if (reply->type != REDIS_REPLY_INTEGER) {
+                throw unexpected_reply_type_error("XTRIM", "integer", reply_type_name(reply->type));
+            }
+            return reply->integer;
+        }
+
+        bool xgroup_create(const std::string &key, const std::string &group, const std::string &id,
+                           bool mkstream) override {
+            std::vector<std::string> args{"XGROUP", "CREATE", key, group, id};
+            if (mkstream) {
+                args.emplace_back("MKSTREAM");
+            }
+            return expect_ok(exec_args(args), "XGROUP CREATE");
+        }
+
+        bool xgroup_setid(const std::string &key, const std::string &group, const std::string &id) override {
+            return expect_ok(exec_args({"XGROUP", "SETID", key, group, id}), "XGROUP SETID");
+        }
+
+        bool xgroup_destroy(const std::string &key, const std::string &group) override {
+            const auto reply = exec_args({"XGROUP", "DESTROY", key, group});
+            if (reply->type != REDIS_REPLY_INTEGER) {
+                throw unexpected_reply_type_error("XGROUP DESTROY", "integer", reply_type_name(reply->type));
+            }
+            return reply->integer == 1;
+        }
+
+        bool xgroup_createconsumer(const std::string &key, const std::string &group,
+                                   const std::string &consumer) override {
+            const auto reply = exec_args({"XGROUP", "CREATECONSUMER", key, group, consumer});
+            if (reply->type != REDIS_REPLY_INTEGER) {
+                throw unexpected_reply_type_error("XGROUP CREATECONSUMER", "integer", reply_type_name(reply->type));
+            }
+            return reply->integer == 1;
+        }
+
+        long long xgroup_delconsumer(const std::string &key, const std::string &group,
+                                     const std::string &consumer) override {
+            const auto reply = exec_args({"XGROUP", "DELCONSUMER", key, group, consumer});
+            if (reply->type != REDIS_REPLY_INTEGER) {
+                throw unexpected_reply_type_error("XGROUP DELCONSUMER", "integer", reply_type_name(reply->type));
+            }
+            return reply->integer;
+        }
+
+        std::vector<string_stream_batch> xreadgroup(const std::string &group, const std::string &consumer,
+                                                    const std::vector<string_stream_read_request> &streams,
+                                                    const stream_read_group_options &options) override {
+            validate_stream_requests(streams, "XREADGROUP");
+            std::vector<std::string> args{"XREADGROUP", "GROUP", group, consumer};
+            append_stream_count_arg(args, options.count, "XREADGROUP");
+            append_stream_block_arg(args, options.block_ms, "XREADGROUP");
+            if (options.noack) {
+                args.emplace_back("NOACK");
+            }
+            append_stream_requests(args, streams);
+            const auto reply = exec_args(args);
+            return parse_stream_batches(reply.get(), "XREADGROUP");
+        }
+
+        long long xack(const std::string &key, const std::string &group, const std::vector<std::string> &ids) override {
+            if (ids.empty()) {
+                return 0;
+            }
+            std::vector<std::string> args{"XACK", key, group};
+            args.insert(args.end(), ids.begin(), ids.end());
+            const auto reply = exec_args(args);
+            if (reply->type != REDIS_REPLY_INTEGER) {
+                throw unexpected_reply_type_error("XACK", "integer", reply_type_name(reply->type));
+            }
+            return reply->integer;
+        }
+
         std::string script_load(const std::string &script) override {
             // SCRIPT LOAD <script> -> returns SHA1 digest of the script
             std::vector<const char *> argv;
@@ -1217,6 +1386,183 @@ namespace redisdal {
         }
 
     protected:
+        /**
+         * @brief Executes a command represented as binary-safe string arguments.
+         */
+        [[nodiscard]] redis_reply_ptr exec_args(const std::vector<std::string> &args) const {
+            if (args.empty()) {
+                throw std::invalid_argument("Redis command arguments must not be empty");
+            }
+            std::vector<const char *> argv;
+            std::vector<size_t> argv_len;
+            argv.reserve(args.size());
+            argv_len.reserve(args.size());
+            for (const auto &arg: args) {
+                argv.push_back(arg.data());
+                argv_len.push_back(arg.size());
+            }
+            return execv(argv, argv_len);
+        }
+
+        static bool expect_ok(const redis_reply_ptr &reply, const std::string &command_name) {
+            if (reply->type != REDIS_REPLY_STATUS) {
+                throw unexpected_reply_type_error(command_name, "status", reply_type_name(reply->type));
+            }
+            return std::string(reply->str, reply->len) == "OK";
+        }
+
+        static void append_stream_count_arg(std::vector<std::string> &args, std::optional<long long> count,
+                                            const std::string &command_name) {
+            if (!count) {
+                return;
+            }
+            if (*count <= 0) {
+                throw std::invalid_argument(command_name + ": count must be greater than zero");
+            }
+            args.emplace_back("COUNT");
+            args.push_back(std::to_string(*count));
+        }
+
+        static void append_stream_block_arg(std::vector<std::string> &args, std::optional<long long> block_ms,
+                                            const std::string &command_name) {
+            if (!block_ms) {
+                return;
+            }
+            if (*block_ms < 0) {
+                throw std::invalid_argument(command_name + ": block_ms must not be negative");
+            }
+            args.emplace_back("BLOCK");
+            args.push_back(std::to_string(*block_ms));
+        }
+
+        static void append_stream_trim_args(std::vector<std::string> &args, const stream_trim_options &options,
+                                            const std::string &command_name) {
+            if (options.threshold.empty()) {
+                throw std::invalid_argument(command_name + ": trim threshold must not be empty");
+            }
+            if (options.limit && *options.limit < 0) {
+                throw std::invalid_argument(command_name + ": trim limit must not be negative");
+            }
+            if (options.limit && !options.approximate) {
+                throw std::invalid_argument(command_name + ": trim limit requires approximate trimming");
+            }
+
+            args.emplace_back(options.strategy == stream_trim_strategy::MAXLEN ? "MAXLEN" : "MINID");
+            if (options.approximate) {
+                args.emplace_back("~");
+            }
+            args.push_back(options.threshold);
+            if (options.limit) {
+                args.emplace_back("LIMIT");
+                args.push_back(std::to_string(*options.limit));
+            }
+        }
+
+        static void validate_stream_requests(const std::vector<string_stream_read_request> &streams,
+                                             const std::string &command_name) {
+            if (streams.empty()) {
+                throw std::invalid_argument(command_name + ": streams must not be empty");
+            }
+            for (const auto &stream: streams) {
+                if (stream.id.empty()) {
+                    throw std::invalid_argument(command_name + ": stream id must not be empty");
+                }
+            }
+        }
+
+        static void append_stream_requests(std::vector<std::string> &args,
+                                           const std::vector<string_stream_read_request> &streams) {
+            args.emplace_back("STREAMS");
+            for (const auto &stream: streams) {
+                args.push_back(stream.key);
+            }
+            for (const auto &stream: streams) {
+                args.push_back(stream.id);
+            }
+        }
+
+        static string_stream_entry parse_stream_entry(const redisReply *reply, const std::string &command_name) {
+            if (!reply || reply->type != REDIS_REPLY_ARRAY || reply->elements != 2) {
+                throw unexpected_reply_type_error(command_name, "two-element stream entry array",
+                                                  reply ? reply_type_name(reply->type) : "null");
+            }
+            if (reply->element[0]->type != REDIS_REPLY_STRING) {
+                throw unexpected_reply_type_error(command_name, "string entry id",
+                                                  reply_type_name(reply->element[0]->type));
+            }
+
+            string_stream_entry result;
+            result.id.assign(reply->element[0]->str, reply->element[0]->len);
+            const redisReply *fields = reply->element[1];
+            // XREADGROUP can return a nil payload when a pending entry was deleted from the stream.
+            if (fields->type == REDIS_REPLY_NIL) {
+                return result;
+            }
+            if (fields->type != REDIS_REPLY_ARRAY) {
+                throw unexpected_reply_type_error(command_name, "field-value array or nil",
+                                                  reply_type_name(fields->type));
+            }
+            if (fields->elements % 2 != 0) {
+                throw std::runtime_error(command_name + ": expected an even number of field-value elements");
+            }
+
+            result.fields.reserve(fields->elements / 2);
+            for (size_t i = 0; i < fields->elements; i += 2) {
+                const redisReply *field = fields->element[i];
+                const redisReply *value = fields->element[i + 1];
+                if (field->type != REDIS_REPLY_STRING || value->type != REDIS_REPLY_STRING) {
+                    throw std::runtime_error(command_name + ": unexpected stream field or value reply type");
+                }
+                result.fields.emplace_back(std::string(field->str, field->len), std::string(value->str, value->len));
+            }
+            return result;
+        }
+
+        static std::vector<string_stream_entry> parse_stream_entries(const redisReply *reply,
+                                                                     const std::string &command_name) {
+            std::vector<string_stream_entry> result;
+            if (reply->type == REDIS_REPLY_NIL) {
+                return result;
+            }
+            if (reply->type != REDIS_REPLY_ARRAY) {
+                throw unexpected_reply_type_error(command_name, "array or nil", reply_type_name(reply->type));
+            }
+            result.reserve(reply->elements);
+            for (size_t i = 0; i < reply->elements; ++i) {
+                result.push_back(parse_stream_entry(reply->element[i], command_name));
+            }
+            return result;
+        }
+
+        static std::vector<string_stream_batch> parse_stream_batches(const redisReply *reply,
+                                                                     const std::string &command_name) {
+            std::vector<string_stream_batch> result;
+            if (reply->type == REDIS_REPLY_NIL) {
+                return result;
+            }
+            if (reply->type != REDIS_REPLY_ARRAY) {
+                throw unexpected_reply_type_error(command_name, "array or nil", reply_type_name(reply->type));
+            }
+            result.reserve(reply->elements);
+            for (size_t i = 0; i < reply->elements; ++i) {
+                const redisReply *batch_reply = reply->element[i];
+                if (batch_reply->type != REDIS_REPLY_ARRAY || batch_reply->elements != 2) {
+                    throw unexpected_reply_type_error(command_name, "two-element stream batch array",
+                                                      reply_type_name(batch_reply->type));
+                }
+                if (batch_reply->element[0]->type != REDIS_REPLY_STRING) {
+                    throw unexpected_reply_type_error(command_name, "string stream key",
+                                                      reply_type_name(batch_reply->element[0]->type));
+                }
+
+                string_stream_batch batch;
+                batch.key.assign(batch_reply->element[0]->str, batch_reply->element[0]->len);
+                batch.entries = parse_stream_entries(batch_reply->element[1], command_name);
+                result.push_back(std::move(batch));
+            }
+            return result;
+        }
+
         // parse redis reply to cmd_reply
         // NOLINTNEXTLINE
         /**

@@ -11,6 +11,7 @@ namespace redisdal {
      *
      * This class delegates all Redis String operations to a redis_template,
      * handling the serialization and deserialization of keys and values.
+     * @note Design role: composed operation-view delegate owned by redis_template.
      * @tparam K The key type.
      * @tparam V The value type.
      */
@@ -72,6 +73,7 @@ namespace redisdal {
      *
      * This class delegates all Redis Hash operations to a redis_template,
      * handling the serialization and deserialization of keys, hash fields, and hash values.
+     * @note Design role: composed operation-view delegate owned by redis_template.
      * @tparam K The key and hash field type.
      * @tparam V The hash value type.
      */
@@ -212,6 +214,7 @@ namespace redisdal {
      *
      * This class delegates all Redis List operations to a redis_template,
      * handling the serialization and deserialization of keys and values.
+     * @note Design role: composed operation-view delegate owned by redis_template.
      * @tparam K The key type.
      * @tparam V The value type.
      */
@@ -330,6 +333,7 @@ namespace redisdal {
      *
      * This class delegates all Redis Set operations to a redis_template,
      * handling the serialization and deserialization of keys and members.
+     * @note Design role: composed operation-view delegate owned by redis_template.
      * @tparam K The key type.
      * @tparam V The member type.
      */
@@ -420,6 +424,7 @@ namespace redisdal {
      *
      * This class delegates all Redis Sorted Set operations to a redis_template,
      * handling the serialization and deserialization of keys and members.
+     * @note Design role: composed operation-view delegate owned by redis_template.
      * @tparam K The key type.
      * @tparam V The member type.
      */
@@ -508,6 +513,159 @@ namespace redisdal {
         }
 
     private:
+        // A reference to the main template for accessing connection and serializers.
+        redis_template<K, V> &tpl;
+    };
+
+    /**
+     * @brief Default implementation of stream_operations.
+     *
+     * This class delegates all Redis Stream operations to a redis_template,
+     * handling the serialization and deserialization of stream keys, entry fields,
+     * and entry values. Stream IDs, group names, and consumer names remain strings.
+     * @note Design role: composed operation-view delegate owned by redis_template.
+     * @tparam K The stream key and entry field type.
+     * @tparam V The entry value type.
+     */
+    template<typename K, typename V>
+    class default_stream_operations: public stream_operations<K, V> {
+    public:
+        /**
+         * @brief Constructs a default_stream_operations instance.
+         * @param ops A reference to the redis_template that provides connection and serialization services.
+         */
+        explicit default_stream_operations(redis_template<K, V> &ops) : tpl(ops) {
+        }
+
+        /** @copydoc stream_operations::xadd */
+        std::optional<std::string> xadd(const K &key, const std::vector<std::pair<K, V>> &fields,
+                                        const stream_add_options &options) override {
+            std::vector<std::pair<std::string, std::string>> serialized_fields;
+            serialized_fields.reserve(fields.size());
+            for (const auto &field: fields) {
+                serialized_fields.emplace_back(tpl.serialize_key(field.first), tpl.serialize_value(field.second));
+            }
+            return tpl.get_connection().xadd(tpl.serialize_key(key), serialized_fields, options);
+        }
+
+        /** @copydoc stream_operations::xlen */
+        long long xlen(const K &key) override {
+            return tpl.get_connection().xlen(tpl.serialize_key(key));
+        }
+
+        /** @copydoc stream_operations::xrange */
+        std::vector<stream_entry<K, V>> xrange(const K &key, const std::string &start, const std::string &end,
+                                               std::optional<long long> count) override {
+            auto raw_entries = tpl.get_connection().xrange(tpl.serialize_key(key), start, end, count);
+            return deserialize_entries(raw_entries);
+        }
+
+        /** @copydoc stream_operations::xrevrange */
+        std::vector<stream_entry<K, V>> xrevrange(const K &key, const std::string &end, const std::string &start,
+                                                  std::optional<long long> count) override {
+            auto raw_entries = tpl.get_connection().xrevrange(tpl.serialize_key(key), end, start, count);
+            return deserialize_entries(raw_entries);
+        }
+
+        /** @copydoc stream_operations::xread */
+        std::vector<stream_batch<K, V>> xread(const std::vector<stream_read_request<K>> &streams,
+                                              const stream_read_options &options) override {
+            auto serialized_streams = serialize_requests(streams);
+            auto raw_batches = tpl.get_connection().xread(serialized_streams, options);
+            return deserialize_batches(raw_batches);
+        }
+
+        /** @copydoc stream_operations::xdel */
+        long long xdel(const K &key, const std::vector<std::string> &ids) override {
+            return tpl.get_connection().xdel(tpl.serialize_key(key), ids);
+        }
+
+        /** @copydoc stream_operations::xtrim */
+        long long xtrim(const K &key, const stream_trim_options &options) override {
+            return tpl.get_connection().xtrim(tpl.serialize_key(key), options);
+        }
+
+        /** @copydoc stream_operations::xgroup_create */
+        bool xgroup_create(const K &key, const std::string &group, const std::string &id, bool mkstream) override {
+            return tpl.get_connection().xgroup_create(tpl.serialize_key(key), group, id, mkstream);
+        }
+
+        /** @copydoc stream_operations::xgroup_setid */
+        bool xgroup_setid(const K &key, const std::string &group, const std::string &id) override {
+            return tpl.get_connection().xgroup_setid(tpl.serialize_key(key), group, id);
+        }
+
+        /** @copydoc stream_operations::xgroup_destroy */
+        bool xgroup_destroy(const K &key, const std::string &group) override {
+            return tpl.get_connection().xgroup_destroy(tpl.serialize_key(key), group);
+        }
+
+        /** @copydoc stream_operations::xgroup_createconsumer */
+        bool xgroup_createconsumer(const K &key, const std::string &group, const std::string &consumer) override {
+            return tpl.get_connection().xgroup_createconsumer(tpl.serialize_key(key), group, consumer);
+        }
+
+        /** @copydoc stream_operations::xgroup_delconsumer */
+        long long xgroup_delconsumer(const K &key, const std::string &group, const std::string &consumer) override {
+            return tpl.get_connection().xgroup_delconsumer(tpl.serialize_key(key), group, consumer);
+        }
+
+        /** @copydoc stream_operations::xreadgroup */
+        std::vector<stream_batch<K, V>> xreadgroup(const std::string &group, const std::string &consumer,
+                                                   const std::vector<stream_read_request<K>> &streams,
+                                                   const stream_read_group_options &options) override {
+            auto serialized_streams = serialize_requests(streams);
+            auto raw_batches = tpl.get_connection().xreadgroup(group, consumer, serialized_streams, options);
+            return deserialize_batches(raw_batches);
+        }
+
+        /** @copydoc stream_operations::xack */
+        long long xack(const K &key, const std::string &group, const std::vector<std::string> &ids) override {
+            return tpl.get_connection().xack(tpl.serialize_key(key), group, ids);
+        }
+
+    private:
+        std::vector<string_stream_read_request>
+        serialize_requests(const std::vector<stream_read_request<K>> &streams) const {
+            std::vector<string_stream_read_request> result;
+            result.reserve(streams.size());
+            for (const auto &stream: streams) {
+                result.push_back({tpl.serialize_key(stream.key), stream.id});
+            }
+            return result;
+        }
+
+        stream_entry<K, V> deserialize_entry(const string_stream_entry &raw_entry) const {
+            stream_entry<K, V> result;
+            result.id = raw_entry.id;
+            result.fields.reserve(raw_entry.fields.size());
+            for (const auto &field: raw_entry.fields) {
+                result.fields.emplace_back(tpl.deserialize_key(field.first), tpl.deserialize_value(field.second));
+            }
+            return result;
+        }
+
+        std::vector<stream_entry<K, V>> deserialize_entries(const std::vector<string_stream_entry> &raw_entries) const {
+            std::vector<stream_entry<K, V>> result;
+            result.reserve(raw_entries.size());
+            for (const auto &raw_entry: raw_entries) {
+                result.push_back(deserialize_entry(raw_entry));
+            }
+            return result;
+        }
+
+        std::vector<stream_batch<K, V>> deserialize_batches(const std::vector<string_stream_batch> &raw_batches) const {
+            std::vector<stream_batch<K, V>> result;
+            result.reserve(raw_batches.size());
+            for (const auto &raw_batch: raw_batches) {
+                stream_batch<K, V> batch;
+                batch.key = tpl.deserialize_key(raw_batch.key);
+                batch.entries = deserialize_entries(raw_batch.entries);
+                result.push_back(std::move(batch));
+            }
+            return result;
+        }
+
         // A reference to the main template for accessing connection and serializers.
         redis_template<K, V> &tpl;
     };

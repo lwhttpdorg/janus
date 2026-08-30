@@ -10,6 +10,12 @@
 namespace redisdal {
     using string_scan_result = scan_result<std::string>;
 
+    /**
+     * @brief String-based connection boundary used by the typed Redis facade.
+     *
+     * This interface applies dependency inversion: higher-level typed operations depend
+     * on this boundary instead of depending directly on hiredis.
+     */
     class kv_connection {
     public:
         /**
@@ -486,6 +492,67 @@ namespace redisdal {
          * @return The new score of the member.
          */
         virtual double zincrby(const std::string &key, double increment, const std::string &member) = 0;
+
+        // ============================================================================
+        // For Stream
+        // ============================================================================
+
+        /**
+         * @brief Appends an ordered field-value entry to a stream.
+         * @return The entry ID, or std::nullopt when NOMKSTREAM is used and the key does not exist.
+         */
+        virtual std::optional<std::string> xadd(const std::string &key,
+                                                const std::vector<std::pair<std::string, std::string>> &fields,
+                                                const stream_add_options &options) = 0;
+
+        /** @brief Returns the number of entries in a stream. */
+        virtual long long xlen(const std::string &key) = 0;
+
+        /** @brief Returns entries in ascending ID order. */
+        virtual std::vector<string_stream_entry> xrange(const std::string &key, const std::string &start,
+                                                        const std::string &end, std::optional<long long> count) = 0;
+
+        /** @brief Returns entries in descending ID order. */
+        virtual std::vector<string_stream_entry> xrevrange(const std::string &key, const std::string &end,
+                                                           const std::string &start,
+                                                           std::optional<long long> count) = 0;
+
+        /** @brief Reads entries newer than the IDs supplied for one or more streams. */
+        virtual std::vector<string_stream_batch> xread(const std::vector<string_stream_read_request> &streams,
+                                                       const stream_read_options &options) = 0;
+
+        /** @brief Deletes entries from a stream. */
+        virtual long long xdel(const std::string &key, const std::vector<std::string> &ids) = 0;
+
+        /** @brief Trims a stream according to MAXLEN or MINID. */
+        virtual long long xtrim(const std::string &key, const stream_trim_options &options) = 0;
+
+        /** @brief Creates a consumer group. */
+        virtual bool xgroup_create(const std::string &key, const std::string &group, const std::string &id,
+                                   bool mkstream) = 0;
+
+        /** @brief Changes a consumer group's last-delivered ID. */
+        virtual bool xgroup_setid(const std::string &key, const std::string &group, const std::string &id) = 0;
+
+        /** @brief Destroys a consumer group. */
+        virtual bool xgroup_destroy(const std::string &key, const std::string &group) = 0;
+
+        /** @brief Creates a consumer in a group. */
+        virtual bool xgroup_createconsumer(const std::string &key, const std::string &group,
+                                           const std::string &consumer) = 0;
+
+        /** @brief Deletes a consumer and returns its pending message count. */
+        virtual long long xgroup_delconsumer(const std::string &key, const std::string &group,
+                                             const std::string &consumer) = 0;
+
+        /** @brief Reads entries through a consumer group. */
+        virtual std::vector<string_stream_batch> xreadgroup(const std::string &group, const std::string &consumer,
+                                                            const std::vector<string_stream_read_request> &streams,
+                                                            const stream_read_group_options &options) = 0;
+
+        /** @brief Acknowledges entries processed by a consumer group. */
+        virtual long long xack(const std::string &key, const std::string &group,
+                               const std::vector<std::string> &ids) = 0;
 
         /**
          * @brief Load the given Lua script into the script cache.

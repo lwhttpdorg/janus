@@ -29,7 +29,8 @@ protected:
     ZSetOpsTest() {
         std::string redis_url = get_redis_connection_url();
         conn = std::make_unique<redisdal::redis_connection>(redis_url);
-        tpl = std::make_unique<redisdal::redis_template<key_type, member_type>>(*conn, key_serializer, value_serializer);
+        tpl =
+            std::make_unique<redisdal::redis_template<key_type, member_type>>(*conn, key_serializer, value_serializer);
     }
 
     void TearDown() override {

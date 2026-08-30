@@ -6,6 +6,13 @@
 #include <type_traits>
 
 namespace redisdal {
+    /**
+     * @brief Strategy interface for converting typed values to and from Redis strings.
+     *
+     * @par Design pattern
+     * Strategy: redis_template receives key and value serializers through constructor
+     * injection, so conversion policies can vary independently of command execution.
+     */
     template<typename T>
     class serializer {
     public:
@@ -121,7 +128,9 @@ namespace redisdal {
         }
     };
 
-    // Serializer wrapper that delegates to string_serializable<T>
+    /**
+     * @brief Default serialization strategy backed by string_serializable<T>.
+     */
     template<typename T>
     class string_serializer: public serializer<T> {
     public:
